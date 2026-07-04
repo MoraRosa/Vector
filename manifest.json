@@ -1,0 +1,12 @@
+{
+  "name": "Job Hunt HQ",
+  "short_name": "Job Hunt HQ",
+  "description": "A low-friction job application tracker with a dashboard.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#FFFBF3",
+  "theme_color": "#FF8552",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

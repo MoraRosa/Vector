@@ -15,6 +15,7 @@
   let links = [];
   let editingLinkId = null;
   let showLinkAdd = false;
+  let expandedJobId = null;
   let filterStage = "All";
   let searchTerm = "";
   let showAdd = false;
@@ -83,45 +84,76 @@
   }
 
   function parsePaste(text) {
-    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-    let company = "", title = "", location = "", workType = "", salary = "", recruiter = "", link = "";
+    const rawLines = text.split("\n").map(l => l.trim()).filter(Boolean);
 
-    const logoLine = lines.find(l => /\slogo$/i.test(l));
-    if (logoLine) company = logoLine.replace(/\slogo$/i, "").trim();
-    else if (lines[0]) company = lines[0];
-
-    const linkMatch = text.match(/\((https?:\/\/[^\s)]+)\)/);
-    if (linkMatch) link = linkMatch[1];
+    let link = "";
+    const mdLinkMatch = text.match(/\((https?:\/\/[^\s)]+)\)/);
+    if (mdLinkMatch) link = mdLinkMatch[1];
     else {
       const bareUrl = text.match(/https?:\/\/[^\s)]+/);
       if (bareUrl) link = bareUrl[0];
     }
 
-    const mdTitleMatch = text.match(/\[([^\]]{4,80})\]\(https?:\/\/[^\s)]*linkedin\.com\/jobs/i);
-    if (mdTitleMatch) title = mdTitleMatch[1].trim();
-    if (!title) {
-      const cand = lines.find(l =>
-        l.length > 3 && l.length < 80 &&
-        !/logo|share|show more|apply|save|promoted|applicants|ago|premium|message|about the job|hiring team/i.test(l) &&
-        /[A-Z]/.test(l[0])
-      );
-      if (cand) title = cand;
+    const isUrlOnlyLine = (l) =>
+      /^\[?[^\]]*\]?\(?https?:\/\/\S+\)?$/.test(l) && /https?:\/\//.test(l) && l.replace(/https?:\/\/\S+/g, "").trim().length < 3;
+    const lines = rawLines.filter(l => !isUrlOnlyLine(l));
+
+    let company = "", title = "", location = "", workType = "", salary = "", recruiter = "";
+
+    const locLineRe = /^([A-Za-zÀ-ÿ'.\s]{2,45},\s?[A-Z]{2})\s*·/;
+    let locLineIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(locLineRe);
+      if (m) { location = m[1].trim(); locLineIdx = i; break; }
     }
 
-    const locMatch = text.match(/([A-Za-zÀ-ÿ.\s]+,\s?[A-Z]{2})\s*(?:\(|·|\n)/);
-    if (locMatch) location = locMatch[1].trim();
+    if (locLineIdx > 0) {
+      title = lines[locLineIdx - 1];
+      const logoLine = lines.slice(0, locLineIdx).find(l => /\slogo$/i.test(l));
+      if (logoLine) company = logoLine.replace(/\slogo$/i, "").trim();
+      else {
+        for (let i = locLineIdx - 2; i >= 0; i--) {
+          const l = lines[i];
+          if (l.length > 1 && l.length < 60 && !/share|show more|promoted|actively reviewing/i.test(l)) {
+            company = l;
+            break;
+          }
+        }
+      }
+    } else {
+      const logoLine = lines.find(l => /\slogo$/i.test(l));
+      if (logoLine) company = logoLine.replace(/\slogo$/i, "").trim();
+      else if (lines[0]) company = lines[0];
+
+      const mdTitleMatch = text.match(/\[([^\]]{4,80})\]\(https?:\/\/[^\s)]*linkedin\.com\/jobs/i);
+      if (mdTitleMatch) title = mdTitleMatch[1].trim();
+      if (!title) {
+        const cand = lines.find(l =>
+          l.length > 3 && l.length < 80 &&
+          !/logo|share|show more|apply|save|promoted|applicants|ago|premium|message|about the job|hiring team/i.test(l) &&
+          /[A-Z]/.test(l[0])
+        );
+        if (cand) title = cand;
+      }
+    }
 
     const workMatch = text.match(/\b(Hybrid|Remote|On-site)\b/i);
     if (workMatch) workType = workMatch[1];
 
-    const salMatch = text.match(/CA\$\s?[\d,]+K?(?:\/yr)?\s*(?:-\s*CA\$\s?[\d,]+K?(?:\/yr)?)?/i);
-    if (salMatch) salary = salMatch[0];
+    const rangeRe = /CAD?\s?\$\s?[\d,]+(?:\.\d+)?K?\s*(?:\/\s?yr|per\s?year)?\s*(?:-|to|–)\s*CAD?\s?\$\s?[\d,]+(?:\.\d+)?K?\s*(?:\/\s?yr|per\s?year)?/i;
+    const singleRe = /CAD?\s?\$\s?[\d,]+(?:\.\d+)?K?\s*(?:\/\s?yr|per\s?year)?/i;
+    const rangeMatch = text.match(rangeRe);
+    if (rangeMatch) salary = rangeMatch[0].replace(/\s+/g, " ").trim();
+    else {
+      const singleMatch = text.match(singleRe);
+      if (singleMatch) salary = singleMatch[0].replace(/\s+/g, " ").trim();
+    }
 
     const hIdx = lines.findIndex(l => /hiring team/i.test(l));
     if (hIdx >= 0) {
       for (let i = hIdx + 1; i < Math.min(hIdx + 6, lines.length); i++) {
         const l = lines[i];
-        if (/^[A-Z][a-zÀ-ÿ'’.-]+(\s[A-Z][a-zÀ-ÿ'’.-]+){0,3}$/.test(l) && !/message|job poster|^\d/i.test(l)) {
+        if (/^[A-Z][A-Za-zÀ-ÿ'’.-]*(\s[A-Z][A-Za-zÀ-ÿ'’.-]*){0,3}$/.test(l) && !/message|job poster|^\d/i.test(l)) {
           recruiter = l;
           break;
         }
@@ -143,8 +175,131 @@
       stage: "Wishlist",
       notes: "",
       dateAdded: new Date().toISOString().slice(0, 10),
+      // Extended fields (from the spreadsheet) — all optional, edited via the Details panel
+      jobType: "", industry: "", companyWebsite: "",
+      dateApplied: "", followUpSent: false, followUpDate: "", responseReceived: false, lastContactDate: "",
+      resumeUsed: "", coverLetterUsed: false, portfolioLink: "",
+      salaryLow: "", salaryHigh: "", myMinSalary: "",
+      recruiterEmail: "", hiringManager: "", internalContact: "",
+      referralRequested: false, referralGiven: false,
+      interviewStage: "", interviewType: "", interviewDate: "", takeHomeAssignment: false, interviewFeedback: "",
+      companyVibe: "", roleFit: "", techStackFit: "", growthPotential: "", gutFeeling: "",
+      finalOutcome: "", offerAmount: "", rejectionReason: "", wouldReapply: "",
     });
     save(); render();
+  }
+
+  function updateJobField(id, field, value) {
+    const job = jobs.find(j => j.id === id);
+    if (job) { job[field] = value; save(); }
+  }
+
+  function priorityScore(job) {
+    const vals = [job.companyVibe, job.roleFit, job.techStackFit, job.growthPotential, job.gutFeeling]
+      .map(Number).filter(n => !isNaN(n) && n > 0);
+    if (!vals.length) return null;
+    return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+  }
+
+  function daysSince(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d)) return null;
+    return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000));
+  }
+
+  function detailField(label, id, jobId, value, type = "text") {
+    if (type === "checkbox") {
+      return `<div class="dfield"><label>${label}</label><input type="checkbox" class="detail-input" data-field="${id}" data-id="${jobId}" ${value ? "checked" : ""} /></div>`;
+    }
+    if (type === "select5") {
+      const opts = ["", "1", "2", "3", "4", "5"].map(v => `<option value="${v}" ${String(value) === v ? "selected" : ""}>${v || "—"}</option>`).join("");
+      return `<div class="dfield"><label>${label}</label><select class="detail-input" data-field="${id}" data-id="${jobId}">${opts}</select></div>`;
+    }
+    return `<div class="dfield"><label>${label}</label><input type="${type}" class="detail-input" data-field="${id}" data-id="${jobId}" value="${escapeHtml(value || "")}" /></div>`;
+  }
+
+  function renderDetailsRow(j) {
+    const score = priorityScore(j);
+    const ds = daysSince(j.dateApplied);
+    return `
+    <tr class="details-row">
+      <td colspan="6">
+        <div class="details-panel">
+
+          <div class="dgroup">
+            <h4>Application Info</h4>
+            <div class="dfield-grid">
+              ${detailField("Job Type", "jobType", j.id, j.jobType)}
+              ${detailField("Industry", "industry", j.id, j.industry)}
+              ${detailField("Company Website", "companyWebsite", j.id, j.companyWebsite)}
+              ${detailField("Date Applied", "dateApplied", j.id, j.dateApplied, "date")}
+              ${detailField("Follow-Up Sent", "followUpSent", j.id, j.followUpSent, "checkbox")}
+              ${detailField("Follow-Up Date", "followUpDate", j.id, j.followUpDate, "date")}
+              ${detailField("Response Received", "responseReceived", j.id, j.responseReceived, "checkbox")}
+              ${detailField("Last Contact Date", "lastContactDate", j.id, j.lastContactDate, "date")}
+              ${detailField("Resume Version Used", "resumeUsed", j.id, j.resumeUsed)}
+              ${detailField("Cover Letter Used", "coverLetterUsed", j.id, j.coverLetterUsed, "checkbox")}
+              ${detailField("Portfolio Link", "portfolioLink", j.id, j.portfolioLink)}
+              <div class="dfield"><label>Days Since Applied</label><div class="dread">${ds === null ? "—" : ds}</div></div>
+            </div>
+          </div>
+
+          <div class="dgroup">
+            <h4>Salary</h4>
+            <div class="dfield-grid">
+              ${detailField("Range Low", "salaryLow", j.id, j.salaryLow, "number")}
+              ${detailField("Range High", "salaryHigh", j.id, j.salaryHigh, "number")}
+              ${detailField("My Minimum", "myMinSalary", j.id, j.myMinSalary, "number")}
+            </div>
+          </div>
+
+          <div class="dgroup">
+            <h4>Contacts &amp; Referrals</h4>
+            <div class="dfield-grid">
+              ${detailField("Recruiter Email", "recruiterEmail", j.id, j.recruiterEmail)}
+              ${detailField("Hiring Manager", "hiringManager", j.id, j.hiringManager)}
+              ${detailField("Internal Contact", "internalContact", j.id, j.internalContact)}
+              ${detailField("Referral Requested", "referralRequested", j.id, j.referralRequested, "checkbox")}
+              ${detailField("Referral Given", "referralGiven", j.id, j.referralGiven, "checkbox")}
+            </div>
+          </div>
+
+          <div class="dgroup">
+            <h4>Interview</h4>
+            <div class="dfield-grid">
+              ${detailField("Stage", "interviewStage", j.id, j.interviewStage)}
+              ${detailField("Type", "interviewType", j.id, j.interviewType)}
+              ${detailField("Date", "interviewDate", j.id, j.interviewDate, "date")}
+              ${detailField("Take-Home Assignment", "takeHomeAssignment", j.id, j.takeHomeAssignment, "checkbox")}
+            </div>
+            <textarea class="detail-textarea" data-field="interviewFeedback" data-id="${j.id}" placeholder="Interview feedback / prep notes...">${escapeHtml(j.interviewFeedback)}</textarea>
+          </div>
+
+          <div class="dgroup">
+            <h4>Gut-Check Scoring <span class="dread" style="margin-left:8px;">Priority: ${score === null ? "—" : score}/5</span></h4>
+            <div class="dfield-grid">
+              ${detailField("Company Vibe", "companyVibe", j.id, j.companyVibe, "select5")}
+              ${detailField("Role Fit", "roleFit", j.id, j.roleFit, "select5")}
+              ${detailField("Tech Stack Fit", "techStackFit", j.id, j.techStackFit, "select5")}
+              ${detailField("Growth Potential", "growthPotential", j.id, j.growthPotential, "select5")}
+              ${detailField("Gut Feeling", "gutFeeling", j.id, j.gutFeeling, "select5")}
+            </div>
+          </div>
+
+          <div class="dgroup">
+            <h4>Outcome</h4>
+            <div class="dfield-grid">
+              ${detailField("Final Outcome", "finalOutcome", j.id, j.finalOutcome)}
+              ${detailField("Offer Amount", "offerAmount", j.id, j.offerAmount, "number")}
+              ${detailField("Would Reapply", "wouldReapply", j.id, j.wouldReapply)}
+            </div>
+            <textarea class="detail-textarea" data-field="rejectionReason" data-id="${j.id}" placeholder="Rejection reason, if any...">${escapeHtml(j.rejectionReason)}</textarea>
+          </div>
+
+        </div>
+      </td>
+    </tr>`;
   }
 
   function cycleStage(id, backward) {
@@ -345,6 +500,7 @@
           <tbody>
             ${visible.map(j => {
               const [bgVar, fgVar] = STAGE_CLASS[j.stage] || ["--paper-alt", "--ink"];
+              const isOpen = expandedJobId === j.id;
               return `
               <tr>
                 <td>
@@ -357,8 +513,12 @@
                 <td><span class="pill" style="background:var(${bgVar});color:var(${fgVar})" data-id="${j.id}" data-action="stage-fwd" title="Click to advance, shift-click to go back">${j.stage}</span></td>
                 <td><textarea class="notes-input" data-id="${j.id}" placeholder="notes...">${escapeHtml(j.notes)}</textarea></td>
                 <td class="loc">${escapeHtml(j.dateAdded)}</td>
-                <td><button class="del-btn" data-id="${j.id}" data-action="delete" title="Delete">×</button></td>
-              </tr>`;
+                <td style="white-space:nowrap;">
+                  <button class="details-toggle" data-id="${j.id}" title="More fields">${isOpen ? "▲" : "Details"}</button>
+                  <button class="del-btn" data-id="${j.id}" data-action="delete" title="Delete">×</button>
+                </td>
+              </tr>
+              ${isOpen ? renderDetailsRow(j) : ""}`;
             }).join("")}
           </tbody>
         </table>
@@ -424,6 +584,29 @@
 
     document.querySelectorAll(".notes-input").forEach(ta => {
       ta.onblur = (e) => updateNotes(ta.getAttribute("data-id"), e.target.value);
+    });
+
+    document.querySelectorAll(".details-toggle").forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.getAttribute("data-id");
+        expandedJobId = expandedJobId === id ? null : id;
+        render();
+      };
+    });
+
+    document.querySelectorAll(".detail-input").forEach(el => {
+      const handler = (e) => {
+        const field = el.getAttribute("data-field");
+        const id = el.getAttribute("data-id");
+        const val = el.type === "checkbox" ? el.checked : el.value;
+        updateJobField(id, field, val);
+        if (["companyVibe", "roleFit", "techStackFit", "growthPotential", "gutFeeling", "dateApplied"].includes(field)) render();
+      };
+      el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date" ? "change" : "blur", handler);
+    });
+
+    document.querySelectorAll(".detail-textarea").forEach(ta => {
+      ta.onblur = (e) => updateJobField(ta.getAttribute("data-id"), ta.getAttribute("data-field"), e.target.value);
     });
 
     const toggleLinkAdd = document.getElementById("toggle-link-add");

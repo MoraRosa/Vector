@@ -351,6 +351,68 @@ tr:hover td { background: #FFFDF9; }
   width: 120px;
 }
 
+/* Details toggle + expanded panel */
+.details-toggle {
+  background: none;
+  border: 1.5px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 10px;
+  cursor: pointer;
+  margin-right: 4px;
+}
+.details-toggle:hover { border-color: var(--sky); color: var(--sky); }
+tr.details-row td { background: var(--paper-alt); padding: 0; }
+.details-panel { padding: 18px 20px; }
+.dgroup { margin-bottom: 18px; }
+.dgroup:last-child { margin-bottom: 0; }
+.dgroup h4 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--coral-dark);
+  font-family: -apple-system, sans-serif;
+}
+.dfield-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.dfield label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.dfield input[type="text"], .dfield input[type="number"], .dfield input[type="date"], .dfield select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1.5px solid var(--line);
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: white;
+}
+.dfield input[type="checkbox"] { width: 17px; height: 17px; margin-top: 3px; accent-color: var(--coral); }
+.dread { font-size: 12.5px; font-weight: 700; color: var(--green); }
+.detail-textarea {
+  width: 100%;
+  min-height: 50px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-family: inherit;
+  resize: vertical;
+  background: white;
+}
+
 @media (max-width: 640px) {
   table, thead, tbody, th, td, tr { display: block; }
   th { display: none; }

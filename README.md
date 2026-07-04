@@ -1,10 +1,11 @@
-# Job Hunt HQ
+# Vector
 
 A low-friction job application tracker: paste a listing, get auto-filled fields, click a pill to advance status, and watch a small dashboard track your pipeline. No spreadsheets, no manual checkboxes.
 
 ## Features
 - **Paste-to-parse**: paste raw job posting text and it extracts company, title, location, work type, salary, and recruiter name where possible
 - **One-click status**: click a pill to advance (Wishlist → Applied → Outreach Sent → Interviewing → Offer/Rejected), shift-click to go back
+- **Quick Links vault**: save your LinkedIn, portfolio, GitHub, etc. as labeled links — click any one to copy it instantly for application forms, edit or delete anytime
 - **Dashboard**: total tracked, active count, interviewing-or-further count, response rate, a pipeline breakdown chart, and applications-by-day chart
 - **Search + filter** by company, title, location, or stage
 - **Installable PWA**: add to your phone/desktop home screen and use it like a native app

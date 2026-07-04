@@ -8,9 +8,13 @@
     "Offer": ["--stage-offer-bg", "--stage-offer-fg"],
     "Rejected": ["--stage-rejected-bg", "--stage-rejected-fg"],
   };
-  const STORAGE_KEY = "jobhunthq:entries";
+  const STORAGE_KEY = "vector:entries";
+  const LINKS_KEY = "vector:links";
 
   let jobs = [];
+  let links = [];
+  let editingLinkId = null;
+  let showLinkAdd = false;
   let filterStage = "All";
   let searchTerm = "";
   let showAdd = false;
@@ -27,7 +31,50 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       jobs = raw ? JSON.parse(raw) : [];
     } catch (e) { jobs = []; }
+    try {
+      const rawLinks = localStorage.getItem(LINKS_KEY);
+      links = rawLinks ? JSON.parse(rawLinks) : [];
+    } catch (e) { links = []; }
     render();
+  }
+
+  function saveLinks() {
+    try { localStorage.setItem(LINKS_KEY, JSON.stringify(links)); }
+    catch (e) { console.error("Save links failed", e); }
+  }
+
+  function addLink(label, url) {
+    links.push({ id: uid(), label: label.trim(), url: url.trim() });
+    saveLinks(); render();
+  }
+
+  function updateLink(id, label, url) {
+    const l = links.find(x => x.id === id);
+    if (l) { l.label = label.trim(); l.url = url.trim(); }
+    editingLinkId = null;
+    saveLinks(); render();
+  }
+
+  function deleteLink(id) {
+    links = links.filter(l => l.id !== id);
+    saveLinks(); render();
+  }
+
+  function copyLink(id) {
+    const l = links.find(x => x.id === id);
+    if (!l) return;
+    navigator.clipboard.writeText(l.url).then(() => {
+      const chip = document.querySelector(`.link-label[data-id="${id}"]`);
+      if (chip) {
+        const original = chip.textContent;
+        chip.textContent = "Copied!";
+        chip.parentElement.classList.add("just-copied");
+        setTimeout(() => {
+          chip.textContent = original;
+          if (chip.parentElement) chip.parentElement.classList.remove("just-copied");
+        }, 1100);
+      }
+    }).catch(() => {});
   }
 
   function save() {
@@ -193,8 +240,8 @@
         <div class="brand">
           <div class="brand-mark">🚀</div>
           <div>
-            <div class="brand-title">Job Hunt HQ</div>
-            <div class="brand-sub">paste a listing, watch it move</div>
+            <div class="brand-title">Vector</div>
+            <div class="brand-sub">track applications, paste to parse, click to advance</div>
           </div>
         </div>
         <button class="btn" id="toggle-add">${showAdd ? "Close" : "+ Add Job"}</button>
@@ -215,6 +262,43 @@
         <div class="chart-card">
           <h3>Pipeline breakdown</h3>
           <canvas id="stageChart"></canvas>
+        </div>
+      </div>
+
+      <div class="panel links-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div>
+            <h3>Quick Links</h3>
+            <p class="hint" style="margin-bottom:0;">Save your LinkedIn, portfolio, GitHub, etc. Click any link to copy it instantly for application forms.</p>
+          </div>
+          <button class="btn ghost small" id="toggle-link-add">${showLinkAdd ? "Close" : "+ Add Link"}</button>
+        </div>
+
+        ${showLinkAdd ? `
+        <div class="link-add-row">
+          <input id="new-link-label" placeholder="Label (e.g. LinkedIn, Portfolio, GitHub)" />
+          <input id="new-link-url" placeholder="https://..." />
+          <button class="btn small" id="save-link-btn">Save</button>
+        </div>
+        ` : ""}
+
+        <div class="links-wrap">
+          ${links.length === 0 ? `<div class="loc" style="padding:6px 0;">No links saved yet.</div>` :
+            links.map(l => `
+              <div class="link-chip" data-id="${l.id}">
+                ${editingLinkId === l.id ? `
+                  <input class="edit-link-label" data-id="${l.id}" value="${escapeHtml(l.label)}" />
+                  <input class="edit-link-url" data-id="${l.id}" value="${escapeHtml(l.url)}" />
+                  <button class="chip-btn confirm" data-id="${l.id}" data-action="confirm-edit" title="Save">✓</button>
+                  <button class="chip-btn" data-id="${l.id}" data-action="cancel-edit" title="Cancel">×</button>
+                ` : `
+                  <span class="link-label" data-id="${l.id}" data-action="copy" title="Click to copy">${escapeHtml(l.label)}</span>
+                  <button class="chip-btn" data-id="${l.id}" data-action="edit-link" title="Edit">✎</button>
+                  <button class="chip-btn del" data-id="${l.id}" data-action="delete-link" title="Delete">×</button>
+                `}
+              </div>
+            `).join("")
+          }
         </div>
       </div>
 
@@ -340,6 +424,43 @@
 
     document.querySelectorAll(".notes-input").forEach(ta => {
       ta.onblur = (e) => updateNotes(ta.getAttribute("data-id"), e.target.value);
+    });
+
+    const toggleLinkAdd = document.getElementById("toggle-link-add");
+    if (toggleLinkAdd) toggleLinkAdd.onclick = () => { showLinkAdd = !showLinkAdd; render(); };
+
+    const saveLinkBtn = document.getElementById("save-link-btn");
+    if (saveLinkBtn) saveLinkBtn.onclick = () => {
+      const label = document.getElementById("new-link-label").value;
+      const url = document.getElementById("new-link-url").value;
+      if (!label.trim() || !url.trim()) return;
+      addLink(label, url);
+      showLinkAdd = false;
+    };
+
+    document.querySelectorAll(".link-label[data-action='copy']").forEach(el => {
+      el.onclick = () => copyLink(el.getAttribute("data-id"));
+    });
+
+    document.querySelectorAll(".chip-btn[data-action='edit-link']").forEach(btn => {
+      btn.onclick = () => { editingLinkId = btn.getAttribute("data-id"); render(); };
+    });
+
+    document.querySelectorAll(".chip-btn[data-action='cancel-edit']").forEach(btn => {
+      btn.onclick = () => { editingLinkId = null; render(); };
+    });
+
+    document.querySelectorAll(".chip-btn[data-action='confirm-edit']").forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.getAttribute("data-id");
+        const label = document.querySelector(`.edit-link-label[data-id="${id}"]`).value;
+        const url = document.querySelector(`.edit-link-url[data-id="${id}"]`).value;
+        updateLink(id, label, url);
+      };
+    });
+
+    document.querySelectorAll(".chip-btn[data-action='delete-link']").forEach(btn => {
+      btn.onclick = () => { if (confirm("Delete this link?")) deleteLink(btn.getAttribute("data-id")); };
     });
   }
 

@@ -287,6 +287,70 @@ tr:hover td { background: #FFFDF9; }
 }
 .empty-state .big { font-size: 40px; margin-bottom: 10px; }
 
+/* Quick Links panel */
+.links-panel { margin-bottom: 22px; }
+.link-add-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.link-add-row input {
+  flex: 1;
+  min-width: 160px;
+  padding: 9px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-family: inherit;
+}
+.link-add-row input:focus { outline: none; border-color: var(--sky); }
+.links-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.link-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--sky-soft);
+  border: 1.5px solid transparent;
+  border-radius: 999px;
+  padding: 7px 8px 7px 16px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.link-chip.just-copied { background: var(--green-soft); border-color: var(--green); }
+.link-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sky);
+  cursor: pointer;
+  user-select: none;
+}
+.link-chip.just-copied .link-label { color: var(--green); }
+.chip-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding: 3px 6px;
+  border-radius: 50%;
+}
+.chip-btn:hover { background: rgba(0,0,0,0.06); }
+.chip-btn.del:hover { color: var(--coral-dark); }
+.chip-btn.confirm { color: var(--green); font-weight: 700; }
+.link-chip input.edit-link-label, .link-chip input.edit-link-url {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  font-family: inherit;
+  width: 120px;
+}
+
 @media (max-width: 640px) {
   table, thead, tbody, th, td, tr { display: block; }
   th { display: none; }

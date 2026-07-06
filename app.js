@@ -11,6 +11,27 @@
   const STORAGE_KEY = "vector:entries";
   const LINKS_KEY = "vector:links";
 
+  const INDUSTRIES = {
+    "Technology": ["Software / SaaS", "FinTech", "HealthTech", "EdTech", "AI / Machine Learning", "Cybersecurity", "IT Services / Consulting", "Hardware / Electronics", "Gaming", "Telecommunications"],
+    "Financial Services": ["Banking", "Insurance", "Investment / Asset Management", "Financial Consulting"],
+    "Healthcare": ["Hospitals / Clinical", "Pharma / Biotech", "Health Insurance"],
+    "Government / Public Sector": [],
+    "Non-Profit / Social Impact": [],
+    "Retail / E-Commerce": [],
+    "Travel & Hospitality": [],
+    "Media & Entertainment": ["Live Events / Ticketing", "Streaming / Broadcast", "Publishing"],
+    "Legal": [],
+    "Human Resources / Staffing": [],
+    "Manufacturing / Industrial": [],
+    "Energy / Utilities": [],
+    "Real Estate": [],
+    "Education": [],
+    "Agency / Consultancy": [],
+    "Automotive": [],
+    "Aerospace / Aviation": [],
+    "Other": [],
+  };
+
   let jobs = [];
   let links = [];
   let editingLinkId = null;
@@ -142,11 +163,30 @@
 
     const rangeRe = /CAD?\s?\$\s?[\d,]+(?:\.\d+)?K?\s*(?:\/\s?yr|per\s?year)?\s*(?:-|to|–)\s*CAD?\s?\$\s?[\d,]+(?:\.\d+)?K?\s*(?:\/\s?yr|per\s?year)?/i;
     const singleRe = /CAD?\s?\$\s?[\d,]+(?:\.\d+)?K?\s*(?:\/\s?yr|per\s?year)?/i;
+    let salaryLow = "", salaryHigh = "";
     const rangeMatch = text.match(rangeRe);
-    if (rangeMatch) salary = rangeMatch[0].replace(/\s+/g, " ").trim();
-    else {
+    if (rangeMatch) {
+      salary = rangeMatch[0].replace(/\s+/g, " ").trim();
+      const nums = salary.match(/\$\s?([\d,]+(?:\.\d+)?)(K)?/gi) || [];
+      const parsed = nums.map(n => {
+        const m = n.match(/\$\s?([\d,]+(?:\.\d+)?)(K)?/i);
+        if (!m) return null;
+        let val = parseFloat(m[1].replace(/,/g, ""));
+        if (m[2]) val *= 1000;
+        return Math.round(val);
+      }).filter(v => v !== null);
+      if (parsed.length >= 2) { salaryLow = parsed[0]; salaryHigh = parsed[1]; }
+    } else {
       const singleMatch = text.match(singleRe);
-      if (singleMatch) salary = singleMatch[0].replace(/\s+/g, " ").trim();
+      if (singleMatch) {
+        salary = singleMatch[0].replace(/\s+/g, " ").trim();
+        const m = salary.match(/\$\s?([\d,]+(?:\.\d+)?)(K)?/i);
+        if (m) {
+          let val = parseFloat(m[1].replace(/,/g, ""));
+          if (m[2]) val *= 1000;
+          salaryLow = Math.round(val);
+        }
+      }
     }
 
     const hIdx = lines.findIndex(l => /hiring team/i.test(l));
@@ -159,7 +199,7 @@
         }
       }
     }
-    return { company, title, location, workType, salary, recruiter, link };
+    return { company, title, location, workType, salary, salaryLow, salaryHigh, recruiter, link };
   }
 
   function addJob(entry) {
@@ -176,10 +216,10 @@
       notes: "",
       dateAdded: new Date().toISOString().slice(0, 10),
       // Extended fields (from the spreadsheet) — all optional, edited via the Details panel
-      jobType: "", industry: "", companyWebsite: "",
-      dateApplied: "", followUpSent: false, followUpDate: "", responseReceived: false, lastContactDate: "",
+      jobType: "", industryMain: "", industrySub: "", industryOther: "", companyWebsite: "",
+      dateApplied: new Date().toISOString().slice(0, 10), followUpSent: false, followUpDate: "", responseReceived: false, lastContactDate: "",
       resumeUsed: "", coverLetterUsed: false, portfolioLink: "",
-      salaryLow: "", salaryHigh: "", myMinSalary: "",
+      salaryLow: entry.salaryLow || "", salaryHigh: entry.salaryHigh || "", myMinSalary: "",
       recruiterEmail: "", hiringManager: "", internalContact: "",
       referralRequested: false, referralGiven: false,
       interviewStage: "", interviewType: "", interviewDate: "", takeHomeAssignment: false, interviewFeedback: "",
@@ -208,6 +248,29 @@
     return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000));
   }
 
+  function renderIndustryField(j) {
+    const mainOpts = ["", ...Object.keys(INDUSTRIES)].map(k =>
+      `<option value="${escapeHtml(k)}" ${j.industryMain === k ? "selected" : ""}>${k || "Select industry..."}</option>`
+    ).join("");
+
+    const subs = INDUSTRIES[j.industryMain] || [];
+    const showSub = j.industryMain && j.industryMain !== "Other" && subs.length > 0;
+    const showOther = j.industryMain === "Other";
+
+    let html = `<div class="dfield"><label>Industry</label><select class="detail-input industry-main" data-field="industryMain" data-id="${j.id}">${mainOpts}</select></div>`;
+
+    if (showSub) {
+      const subOpts = ["", ...subs].map(s =>
+        `<option value="${escapeHtml(s)}" ${j.industrySub === s ? "selected" : ""}>${s || "Select sub-industry..."}</option>`
+      ).join("");
+      html += `<div class="dfield"><label>Sub-Industry</label><select class="detail-input" data-field="industrySub" data-id="${j.id}">${subOpts}</select></div>`;
+    }
+    if (showOther) {
+      html += `<div class="dfield"><label>Specify Industry</label><input type="text" class="detail-input" data-field="industryOther" data-id="${j.id}" value="${escapeHtml(j.industryOther || "")}" /></div>`;
+    }
+    return html;
+  }
+
   function detailField(label, id, jobId, value, type = "text") {
     if (type === "checkbox") {
       return `<div class="dfield"><label>${label}</label><input type="checkbox" class="detail-input" data-field="${id}" data-id="${jobId}" ${value ? "checked" : ""} /></div>`;
@@ -231,7 +294,7 @@
             <h4>Application Info</h4>
             <div class="dfield-grid">
               ${detailField("Job Type", "jobType", j.id, j.jobType)}
-              ${detailField("Industry", "industry", j.id, j.industry)}
+              ${renderIndustryField(j)}
               ${detailField("Company Website", "companyWebsite", j.id, j.companyWebsite)}
               ${detailField("Date Applied", "dateApplied", j.id, j.dateApplied, "date")}
               ${detailField("Follow-Up Sent", "followUpSent", j.id, j.followUpSent, "checkbox")}
@@ -308,6 +371,9 @@
     let idx = STAGES.indexOf(job.stage);
     idx = backward ? (idx - 1 + STAGES.length) % STAGES.length : (idx + 1) % STAGES.length;
     job.stage = STAGES[idx];
+    if (job.stage === "Applied" && !job.dateApplied) {
+      job.dateApplied = new Date().toISOString().slice(0, 10);
+    }
     save(); render();
   }
 
@@ -475,6 +541,8 @@
           <div class="field"><label>Salary</label><input id="f-salary" /></div>
           <div class="field"><label>Recruiter / Contact</label><input id="f-recruiter" /></div>
           <div class="field" style="grid-column: span 2;"><label>Link</label><input id="f-link" /></div>
+          <input type="hidden" id="f-salarylow" />
+          <input type="hidden" id="f-salaryhigh" />
         </div>
         <button class="btn" id="save-btn">Save Job</button>
       </div>
@@ -546,6 +614,8 @@
       document.getElementById("f-salary").value = p.salary;
       document.getElementById("f-recruiter").value = p.recruiter;
       document.getElementById("f-link").value = p.link;
+      document.getElementById("f-salarylow").value = p.salaryLow || "";
+      document.getElementById("f-salaryhigh").value = p.salaryHigh || "";
     };
 
     const clearBtn = document.getElementById("clear-paste");
@@ -561,6 +631,8 @@
         salary: document.getElementById("f-salary").value.trim(),
         recruiter: document.getElementById("f-recruiter").value.trim(),
         link: document.getElementById("f-link").value.trim(),
+        salaryLow: document.getElementById("f-salarylow").value.trim(),
+        salaryHigh: document.getElementById("f-salaryhigh").value.trim(),
       };
       if (!entry.company && !entry.title) return;
       addJob(entry);
@@ -599,8 +671,12 @@
         const field = el.getAttribute("data-field");
         const id = el.getAttribute("data-id");
         const val = el.type === "checkbox" ? el.checked : el.value;
+        if (field === "industryMain") {
+          const job = jobs.find(j => j.id === id);
+          if (job) { job.industrySub = ""; job.industryOther = ""; }
+        }
         updateJobField(id, field, val);
-        if (["companyVibe", "roleFit", "techStackFit", "growthPotential", "gutFeeling", "dateApplied"].includes(field)) render();
+        if (["companyVibe", "roleFit", "techStackFit", "growthPotential", "gutFeeling", "dateApplied", "industryMain"].includes(field)) render();
       };
       el.addEventListener(el.tagName === "SELECT" || el.type === "checkbox" || el.type === "date" ? "change" : "blur", handler);
     });

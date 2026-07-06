@@ -3,9 +3,12 @@
 A low-friction job application tracker: paste a listing, get auto-filled fields, click a pill to advance status, and watch a small dashboard track your pipeline. No spreadsheets, no manual checkboxes.
 
 ## Features
-- **Paste-to-parse**: paste raw job posting text and it extracts company, title, location, work type, salary, and recruiter name where possible
+- **Paste-to-parse**: paste raw job posting text and it extracts company, title, location, work type, salary (including numeric range), and recruiter name where possible
 - **One-click status**: click a pill to advance (Wishlist → Applied → Outreach Sent → Interviewing → Offer/Rejected), shift-click to go back
+- **Auto-dated**: Date Applied is stamped automatically the moment a job first moves to "Applied" (or defaults to the day you add it)
 - **Quick Links vault**: save your LinkedIn, portfolio, GitHub, etc. as labeled links — click any one to copy it instantly for application forms, edit or delete anytime
+- **Industry taxonomy**: two-level industry picker (main category → sub-category), with a free-text "Other" option if nothing fits
+- **Details panel**: expandable per-job section covering everything from the original spreadsheet — job type, dates, referrals, interview stage/feedback, five-point gut-check scoring with an auto-averaged priority score, offer amount, rejection reason
 - **Dashboard**: total tracked, active count, interviewing-or-further count, response rate, a pipeline breakdown chart, and applications-by-day chart
 - **Search + filter** by company, title, location, or stage
 - **Installable PWA**: add to your phone/desktop home screen and use it like a native app
